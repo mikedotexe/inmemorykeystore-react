@@ -6,18 +6,34 @@ const nearConfig = getConfig(process.env.NODE_ENV || 'development')
 // Initialize contract & set global variables
 export async function initContract() {
   // Initialize connection to the NEAR testnet
-  nearConfig.contractName = 'dev-1596754590228-4059297'
+  nearConfig.contractName = 'near-link.o.mike.testnet'
   const keyStore = new keyStores.InMemoryKeyStore()
-  const privateKey = 'ed25519:3XwVzpqeeyehuSNC8YepjnbVffUm1tfCfqCpTYcuveziTxg6zUe34VatvHQ7rQ1ttYMedAiR3m7mdKZMoyLSamVN'
-  const accountId2 = 'dev-1596754590228-4059297'
+  const privateKey = 'ed25519:2W8yR91nSSzK3hU5M6R77bCWHBV7G2RkwZtQxgxmQuL7ahxgEyKVMbq9p7kBM1QZZY5cibzx3nqn5CXKx4P4YmNe'
   const hardKeypair = KeyPair.fromString(privateKey);
-  console.log('nearConfig.networkId', nearConfig.networkId)
-  console.log('accountId2', accountId2)
-  console.log('hardKeypair', hardKeypair)
-  await keyStore.setKey(nearConfig.networkId, accountId2, hardKeypair);
+  await keyStore.setKey(nearConfig.networkId, nearConfig.contractName, hardKeypair);
   const near = await connect(Object.assign({ deps: { keyStore: keyStore } }, nearConfig))
 
-  const account2 = await near.account(accountId2)
+  window.account = await near.account(nearConfig.contractName)
+  // const hm = await near.account(nearConfig.contractName)
+
+  const transferArgs = {
+    escrow_account_id: "joshford.testnet",
+    amount: "19"
+  }
+  // because numbers can be enormous and JavaScript sux we send most amounts as strings
+
+  // const transferResult = await window.account.functionCall(
+  // const res = window.account.signAndSendTransaction(
+  //   nearConfig.contractName,
+  //   [transactions.functionCall('transfer',
+  //     Buffer.from(JSON.stringify(transferArgs)))]
+  // )
+
+  // const transferResult = await hm.functionCall(
+  //   window.accountId,
+  //   'transfer',
+  //   Buffer.from(JSON.stringify(transferArgs))
+  // )
 
 
   // Initializing Wallet based Account. It can work with NEAR testnet wallet that
@@ -26,27 +42,111 @@ export async function initContract() {
 
   // Getting the Account ID. If still unauthorized, it's just empty string
   // window.accountId = window.walletConnection.getAccountId()
-  window.accountId = account2.account_id
+  window.accountId = account.accountId
 
   // Initializing our contract APIs by contract name and configuration
-  window.contract = await new Contract(account2, nearConfig.contractName, {
+  window.contract = await new Contract(account, nearConfig.contractName, {
     // View methods are read only. They don't modify the state, but usually return some value.
-    viewMethods: ['getGreeting'],
+    viewMethods: ['get_balance', 'get_allowance'],
     // Change methods can modify the state. But you don't receive the returned value when called.
-    changeMethods: ['setGreeting'],
+    changeMethods: ['transfer', 'inc_allowance'],
   })
-  console.log('aloha end of initcontract')
+}
+
+async function getAccount() {
+  nearConfig.contractName = 'near-link.o.mike.testnet'
+  const keyStore = new keyStores.InMemoryKeyStore()
+  const privateKey = 'ed25519:2W8yR91nSSzK3hU5M6R77bCWHBV7G2RkwZtQxgxmQuL7ahxgEyKVMbq9p7kBM1QZZY5cibzx3nqn5CXKx4P4YmNe'
+  const hardKeypair = KeyPair.fromString(privateKey);
+  await keyStore.setKey(nearConfig.networkId, nearConfig.contractName, hardKeypair);
+  const near = await connect(Object.assign({ deps: { keyStore: keyStore } }, nearConfig))
+
+  return await near.account(nearConfig.contractName)
 }
 
 // attached to the form used to update the greeting
 // in utils because it works with a vanilla JS or a React approach
 export async function onSubmit(event) {
-  console.log('aloha top of onSubmit', window.contract)
-  let setresult = await window.contract.setGreeting({
+  // check some balances
+  let josh = 'joshford.testnet'
+
+  let targetAccountId = josh
+  let tokenInAccount = await window.contract.get_balance({
     // pass the value that the user entered in the greeting field
-    message: 'aloha'
+    owner_id: targetAccountId
   })
-  console.log('aloha setresult', setresult)
+  console.log(`${targetAccountId} has ${tokenInAccount} tokens`)
+
+  tokenInAccount = await window.contract.get_allowance({
+    // pass the value that the user entered in the greeting field
+    owner_id: window.accountId,
+    escrow_account_id: josh
+  })
+  console.log(`${targetAccountId} has ${tokenInAccount} allowance`)
+
+  tokenInAccount = await window.contract.get_balance({
+    // pass the value that the user entered in the greeting field
+    owner_id: window.accountId
+  })
+  console.log(`${window.accountId} has ${tokenInAccount} tokens`)
+
+  console.log('-------------------')
+
+  // transfer to Jahsh
+
+  // const hm = await getAccount()
+  const transferArgs = {
+    "new_owner_id": "joshford.testnet",
+    "amount": "19" // because numbers can be enormous and JavaScript sux we send most amounts as strings
+  }
+
+  // THIS WAY
+  // const transferResult = await window.account.functionCall(
+  let transferResult = await window.account.functionCall(
+    window.accountId,
+    'transfer',
+    transferArgs,
+    null,
+    '36500000000000000000000'
+  )
+    // Buffer.from(JSON.stringify(transferArgs))
+
+    // .inc_allowance()
+  console.log('result of transferring fungible tokens to josh', transferResult)
+
+  tokenInAccount = await window.contract.get_balance({
+    // pass the value that the user entered in the greeting field
+    owner_id: targetAccountId
+  })
+  console.log(`${targetAccountId} has ${tokenInAccount} tokens`)
+
+  tokenInAccount = await window.contract.get_balance({
+    // pass the value that the user entered in the greeting field
+    owner_id: window.accountId
+  })
+  console.log(`${window.accountId} has ${tokenInAccount} tokens`)
+
+  // AND THIS WAY
+  transferResult = await window.contract.transfer({
+    new_owner_id: josh,
+    amount: "1" // because numbers can be enormous and JavaScript sux we send most amounts as strings
+  })
+  console.log('result of transferring fungible tokens to josh', transferResult)
+
+  // see how many josh and the contract itself has (lazy-ass copy/paste)
+
+  targetAccountId = josh
+  tokenInAccount = await window.contract.get_balance({
+    // pass the value that the user entered in the greeting field
+    owner_id: targetAccountId
+  })
+  console.log(`${targetAccountId} has ${tokenInAccount} tokens`)
+
+  tokenInAccount = await window.contract.get_balance({
+    // pass the value that the user entered in the greeting field
+    owner_id: window.accountId
+  })
+  console.log(`${window.accountId} has ${tokenInAccount} tokens`)
 
   return
 
