@@ -12,6 +12,15 @@ export async function initContract() {
   const hardKeypair = KeyPair.fromString(privateKey);
   await keyStore.setKey(nearConfig.networkId, nearConfig.contractName, hardKeypair);
   const near = await connect(Object.assign({ deps: { keyStore: keyStore } }, nearConfig))
+  window.near = near
+
+
+  const latestHash = (await near.connection.provider.status()).sync_info.latest_block_hash;
+  const latestBlock = await near.connection.provider.block(latestHash);
+  const previousBlockHash = latestBlock.header.prev_hash
+  console.log('aloha latestHash', latestHash)
+  console.log('aloha latestBlock', latestBlock)
+  console.log('aloha previousBlockHash', previousBlockHash)
 
   window.account = await near.account(nearConfig.contractName)
   // const hm = await near.account(nearConfig.contractName)
@@ -109,10 +118,26 @@ export async function onSubmit(event) {
     null,
     '36500000000000000000000'
   )
+
+
     // Buffer.from(JSON.stringify(transferArgs))
 
     // .inc_allowance()
   console.log('result of transferring fungible tokens to josh', transferResult)
+  window.tx = transferResult
+  const block = transferResult.transaction_outcome.block_hash
+  console.log('block', block)
+  const blockObj = await window.near.connection.provider.block(block);
+  console.log('blockObj', blockObj)
+  let chunkFromChunkHash = async c => { return await window.near.connection.provider.chunk(c.chunk_hash) };
+  const allChunks = await Promise.all(blockObj.chunks.map(chunkFromChunkHash));
+
+  // Filter for chunks with transactions
+  let chunksContainingTxs = allChunks.filter(function (chunk) {
+    return chunk.transactions.length !== 0;
+  });
+  console.log('alohazzz chunksContainingTxs', chunksContainingTxs)
+
 
   tokenInAccount = await window.contract.get_balance({
     // pass the value that the user entered in the greeting field
@@ -127,11 +152,13 @@ export async function onSubmit(event) {
   console.log(`${window.accountId} has ${tokenInAccount} tokens`)
 
   // AND THIS WAY
-  transferResult = await window.contract.transfer({
-    new_owner_id: josh,
-    amount: "1" // because numbers can be enormous and JavaScript sux we send most amounts as strings
-  })
-  console.log('result of transferring fungible tokens to josh', transferResult)
+  // transferResult = await window.contract.transfer({
+  //   new_owner_id: josh,
+  //   amount: "1" // because numbers can be enormous and JavaScript sux we send most amounts as strings
+  // })
+  // console.log('result of transferring fungible tokens to josh', transferResult)
+  // console.log(`https://explorer.testnet.near.org/transactions/${transferResult.transaction.hash}`)
+
 
   // see how many josh and the contract itself has (lazy-ass copy/paste)
 
